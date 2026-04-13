@@ -1,0 +1,5 @@
+# --- DEPENDENCIAS DE JOSÉ JUAN (TRAINING PIPELINE) ---
+scikit-learn
+joblib
+boto3
+# -----------------------------------------------------
