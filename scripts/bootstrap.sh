@@ -1,20 +1,34 @@
 #!/bin/bash
-# (Axel pondrá aquí sus comandos de sudo apt-get update, etc.)
+set -e
 
-# ==============================================================================
-# BLOQUE DE JOSÉ JUAN (TRAINING PIPELINE)
-# Este bloque instala las librerías, entrena el modelo y lo sube a S3.
-# ==============================================================================
-echo "Iniciando Pipeline de Entrenamiento..."
+# Bootstrap script for EC2 instance
+echo "Starting EC2 bootstrap..."
 
-# 1. Instalar librerías
-pip3 install -r requirements.txt
+# Update and install dependencies
+apt-get update -y
+apt-get install -y python3-pip python3-venv
 
-# 2. Ejecutar el script que entrena y sube el modelo
-# Asegurarse de estar en la carpeta raíz del proyecto antes de correr esto
+# Create virtual environment
+python3 -m venv /home/ubuntu/mlops-env
+source /home/ubuntu/mlops-env/bin/activate
+
+# Install Python dependencies
+pip install --upgrade pip
+pip install -r /home/ubuntu/End-to-End-ML/requirements.txt
+
+# Set environment variables
+export S3_BUCKET_NAME=$(aws s3 ls --query 'Buckets[].Name' --output text | grep mlops-housing)
+export MODEL_PATH="s3://${S3_BUCKET_NAME}/models/model.joblib"
+
+# Run training
+cd /home/ubuntu/End-to-End-ML
 python3 src/train.py
 
-echo "Entrenamiento finalizado. Modelo listo en S3."
-# ==============================================================================
+# Upload model to S3
+aws s3 cp model.joblib s3://${S3_BUCKET_NAME}/models/model.joblib
 
-# (Aquí Saúl pondrá el comando para levantar FastAPI: uvicorn src.app:app ...)
+# Start FastAPI server
+cd /home/ubuntu/End-to-End-ML/src
+nohup uvicorn app:app --host 0.0.0.0 --port 8000 &
+
+echo "Bootstrap complete. Inference API running on port 8000."

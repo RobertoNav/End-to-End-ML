@@ -1,5 +1,10 @@
-# --- DEPENDENCIAS DE JOSÉ JUAN (TRAINING PIPELINE) ---
+# --- DEPENDENCIES ---
 scikit-learn
 joblib
 boto3
-# -----------------------------------------------------
+fastapi
+uvicorn
+pydantic
+pytest
+flake8
+# -------------------
