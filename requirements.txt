@@ -3,3 +3,8 @@ scikit-learn
 joblib
 boto3
 # -----------------------------------------------------
+fastapi
+uvicorn
+pytest
+httpx
+flake8
