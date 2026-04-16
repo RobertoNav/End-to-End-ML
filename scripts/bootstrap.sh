@@ -1,5 +1,18 @@
 #!/bin/bash
-# (Axel pondrá aquí sus comandos de sudo apt-get update, etc.)
+# Actualizar el sistema e instalar Python, pip y dependencias básicas
+sudo apt-get update -y
+sudo apt-get install -y python3-pip python3-venv git awscli
+
+# ==============================================================================
+# BLOQUE DE INFRAESTRUCTURA (PERSONA 3)
+# Clonar el repositorio para tener acceso al código y los requerimientos.
+# ==============================================================================
+cd /home/ubuntu
+git clone https://github.com/RobertoNav/End-to-End-ML.git
+cd End-to-End-ML
+
+# Dar permisos al usuario ubuntu
+chown -R ubuntu:ubuntu /home/ubuntu/End-to-End-ML
 
 # ==============================================================================
 # BLOQUE DE JOSÉ JUAN (TRAINING PIPELINE)
