@@ -8,15 +8,14 @@ terraform {
     }
   }
 
-  # backend "s3" {
-  #   # IMPORTANTE: Cambiar valores cuando se cree el bucket y tabla o crear mediante un pre-script.
-  #   # Por mientras está comentado para permitir a Github Actions realizar su primera prueba satisfactoriamente.
-  #   bucket         = "TU_BUCKET_DE_ESTADO_TERRAFORM"
-  #   key            = "mlops/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   dynamodb_table = "TU_TABLA_DYNAMODB_TERRAFORM"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "mlops-estado-terraform-robertona"
+    key            = "mlops/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "mlops-terraform-locks"
+    encrypt        = true
+  }
+
 }
 
 provider "aws" {
