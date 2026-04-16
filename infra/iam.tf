@@ -38,6 +38,12 @@ resource "aws_iam_role_policy" "s3_access_attachment" {
   policy = data.aws_iam_policy_document.s3_access_policy.json
 }
 
+# Adjuntar la política administrada por AWS para que SSM (Session Manager) funcione
+resource "aws_iam_role_policy_attachment" "ssm_core_attachment" {
+  role       = aws_iam_role.mlops_ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 # Perfil de instancia para adherirlo a la EC2
 resource "aws_iam_instance_profile" "mlops_ec2_profile" {
   name = "${var.project_name}-ec2-profile"
