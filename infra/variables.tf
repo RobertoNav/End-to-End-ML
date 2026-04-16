@@ -13,7 +13,7 @@ variable "project_name" {
 variable "app_bucket_name" {
   description = "Nombre único del bucket S3 para los datos y el modelo (e.g. tu-equipo-mlops-housing-bucket)"
   type        = string
-  default     = "mlops-housing-bucket"
+  default     = "mlops-housing-artifacts-robertona"
 }
 
 variable "instance_type" {
