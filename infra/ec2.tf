@@ -52,7 +52,7 @@ resource "aws_instance" "mlops_server" {
   iam_instance_profile   = aws_iam_instance_profile.mlops_ec2_profile.name
 
   # Usar file function para cargar el script desde el archivo bootstrap.sh
-  user_data = file("../scripts/bootstrap.sh")
+  user_data = file("${path.module}/../scripts/bootstrap.sh")
 
   tags = {
     Name = "${var.project_name}-ec2"
