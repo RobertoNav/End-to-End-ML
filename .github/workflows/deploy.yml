@@ -74,10 +74,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Wait for EC2 instance bootstrap
+      - name: Wait for API health endpoint
         run: |
-          echo "Waiting 120 seconds for EC2 instance to complete bootstrap..."
-          sleep 120
+          ENDPOINT_IP="${{ needs.deploy.outputs.endpoint_ip }}"
+          echo "Waiting for API at http://${ENDPOINT_IP}:8000/health"
+
+          for i in {1..30}; do
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "http://${ENDPOINT_IP}:8000/health" || true)
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            if [ "$HTTP_CODE" -eq 200 ]; then
+              echo "API is healthy. Body: $BODY"
+              exit 0
+            fi
+
+            echo "Attempt $i/30: API not ready yet (HTTP: ${HTTP_CODE:-N/A})"
+            sleep 10
+          done
+
+          echo "API did not become healthy in time"
+          exit 1
 
       - name: Smoke test - verify /predict endpoint
         run: |
