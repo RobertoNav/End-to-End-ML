@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euxo pipefail
+
 # Actualizar el sistema e instalar Python, pip y dependencias básicas
 sudo apt-get update -y
 sudo apt-get install -y python3-pip python3-venv git awscli
@@ -8,8 +10,16 @@ sudo apt-get install -y python3-pip python3-venv git awscli
 # Clonar el repositorio para tener acceso al código y los requerimientos.
 # ==============================================================================
 cd /home/ubuntu
-git clone https://github.com/RobertoNav/End-to-End-ML.git
-cd End-to-End-ML
+
+if [ -d End-to-End-ML/.git ]; then
+	cd End-to-End-ML
+	git fetch origin
+	git checkout main
+	git pull origin main
+else
+	git clone https://github.com/RobertoNav/End-to-End-ML.git
+	cd End-to-End-ML
+fi
 
 # Obtener el código más reciente de main
 echo "Pulling latest code from main branch..."
@@ -47,4 +57,21 @@ export MODEL_S3_KEY="models/model.joblib"
 nohup python3 -m uvicorn src.app:app --host 0.0.0.0 --port 8000 > /var/log/mlops-api.log 2>&1 &
 
 echo "FastAPI iniciada en puerto 8000. Log: /var/log/mlops-api.log"
+
+# Espera activa para confirmar que la app está lista antes de terminar bootstrap
+for i in {1..30}; do
+	if curl -s http://127.0.0.1:8000/health | grep -q '"status":"ok"'; then
+		echo "FastAPI healthy after $((i * 5)) seconds"
+		break
+	fi
+
+	if [ "$i" -eq 30 ]; then
+		echo "FastAPI did not become healthy in time"
+		tail -n 100 /var/log/mlops-api.log || true
+		exit 1
+	fi
+
+	sleep 5
+done
+
 echo "Bootstrap completado exitosamente en: $(date)"
