@@ -65,10 +65,10 @@ if __name__ == "__main__":
     
     # Aquí vamos a leer el nombre del bucket de las variables de entorno
     # que configurará Tirzah en el pipeline. Por ahora ponemos un nombre dummy
-    # BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", "nombre-dummy-del-bucket") 
+    BUCKET_NAME = "mlops-housing-artifacts-robertona"
     
     # La ruta exacta que acordaste con Saúl (ej. models/model.joblib)
-    # S3_PATH = f"models/{saved_model_file}"
-    
+    S3_PATH = f"models/{saved_model_file}"
+
     # Llamamos a la función de subida
-    # upload_to_s3(saved_model_file, BUCKET_NAME, S3_PATH)
+    upload_to_s3(saved_model_file, BUCKET_NAME, S3_PATH)
