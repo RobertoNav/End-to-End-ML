@@ -11,6 +11,13 @@ cd /home/ubuntu
 git clone https://github.com/RobertoNav/End-to-End-ML.git
 cd End-to-End-ML
 
+# Obtener el código más reciente de main
+echo "Pulling latest code from main branch..."
+git pull origin main
+echo "Repository updated. Current commit:"
+git log -1 --oneline
+echo "Bootstrap version: $(date)"
+
 # Dar permisos al usuario ubuntu
 chown -R ubuntu:ubuntu /home/ubuntu/End-to-End-ML
 
@@ -40,3 +47,4 @@ export MODEL_S3_KEY="models/model.joblib"
 nohup python3 -m uvicorn src.app:app --host 0.0.0.0 --port 8000 > /var/log/mlops-api.log 2>&1 &
 
 echo "FastAPI iniciada en puerto 8000. Log: /var/log/mlops-api.log"
+echo "Bootstrap completado exitosamente en: $(date)"
