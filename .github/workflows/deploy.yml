@@ -5,7 +5,6 @@ on:
     branches: [main]
 
 jobs:
-  # Stage 1: Continuous Integration (CI)
   ci:
     runs-on: ubuntu-latest
     steps:
@@ -25,72 +24,84 @@ jobs:
 
       - name: Lint with flake8
         run: |
-          # Stop the build if there are Python syntax errors or undefined names
           flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Exit-zero treats all errors as warnings (adjust threshold as needed)
           flake8 src/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Run unit tests
         run: |
           pytest tests/test_train.py -v
 
-  # Stage 2: Infrastructure Provisioning (CD)
   deploy:
     needs: ci
     runs-on: ubuntu-latest
     outputs:
       endpoint_ip: ${{ steps.tf.outputs.endpoint_ip }}
+      instance_id: ${{ steps.tf.outputs.instance_id }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
         id: init
-        run: |
-          cd infra
-          terraform init
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+        run: terraform -chdir=infra init
 
       - name: Terraform Apply
         id: tf
         run: |
-          cd infra
-          terraform apply -auto-approve -replace=aws_instance.mlops_server
-          echo "endpoint_ip=$(terraform output -raw ec2_public_ip)" >> "$GITHUB_OUTPUT"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+          terraform -chdir=infra apply -auto-approve -replace=aws_instance.mlops_server
+          echo "endpoint_ip=$(terraform -chdir=infra output -raw ec2_public_ip)" >> "$GITHUB_OUTPUT"
+          echo "instance_id=$(terraform -chdir=infra output -raw ec2_instance_id)" >> "$GITHUB_OUTPUT"
 
-  # Stage 3: Validation (Smoke Test)
   validate:
     needs: deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Wait for EC2 instance checks
+        run: |
+          INSTANCE_ID="${{ needs.deploy.outputs.instance_id }}"
+          echo "Waiting for EC2 instance ${INSTANCE_ID} to pass AWS status checks"
+          aws ec2 wait instance-status-ok --instance-ids "${INSTANCE_ID}"
+          aws ec2 describe-instances \
+            --instance-ids "${INSTANCE_ID}" \
+            --query 'Reservations[0].Instances[0].{State:State.Name,PublicIp:PublicIpAddress,LaunchTime:LaunchTime}' \
+            --output table
+
       - name: Wait for API health endpoint
         run: |
           ENDPOINT_IP="${{ needs.deploy.outputs.endpoint_ip }}"
           echo "Waiting for API at http://${ENDPOINT_IP}:8000/health"
 
-          for i in {1..30}; do
-            RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "http://${ENDPOINT_IP}:8000/health" || true)
+          for i in {1..60}; do
+            RESPONSE=$(curl -sS --connect-timeout 5 --max-time 10 -w "\n%{http_code}" \
+              -X GET "http://${ENDPOINT_IP}:8000/health" || true)
             HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
             BODY=$(echo "$RESPONSE" | sed '$d')
 
-            if [ "$HTTP_CODE" -eq 200 ]; then
+            if [ "$HTTP_CODE" = "200" ]; then
               echo "API is healthy. Body: $BODY"
               exit 0
             fi
 
-            echo "Attempt $i/30: API not ready yet (HTTP: ${HTTP_CODE:-N/A})"
-            sleep 10
+            echo "Attempt $i/60: API not ready yet (HTTP: ${HTTP_CODE:-N/A})"
+            sleep 15
           done
 
           echo "API did not become healthy in time"
@@ -101,7 +112,7 @@ jobs:
           ENDPOINT_IP="${{ needs.deploy.outputs.endpoint_ip }}"
           echo "Testing endpoint at http://${ENDPOINT_IP}:8000/predict"
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          RESPONSE=$(curl -sS --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
             "http://${ENDPOINT_IP}:8000/predict" \
             -H "Content-Type: application/json" \
             -d '{"features": [8.3, 41.0, 6.98, 1.02, 322.0, 2.56, 37.88, -122.23]}')
@@ -124,7 +135,7 @@ jobs:
           ENDPOINT_IP="${{ needs.deploy.outputs.endpoint_ip }}"
           echo "Testing health endpoint at http://${ENDPOINT_IP}:8000/health"
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
+          RESPONSE=$(curl -sS --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X GET \
             "http://${ENDPOINT_IP}:8000/health")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -139,3 +150,17 @@ jobs:
           fi
 
           echo "Health check passed!"
+
+      - name: Capture EC2 diagnostics on failure
+        if: failure()
+        run: |
+          INSTANCE_ID="${{ needs.deploy.outputs.instance_id }}"
+          echo "Instance diagnostics for ${INSTANCE_ID}"
+          aws ec2 describe-instance-status \
+            --include-all-instances \
+            --instance-ids "${INSTANCE_ID}" \
+            --output table || true
+          aws ec2 get-console-output \
+            --instance-id "${INSTANCE_ID}" \
+            --latest \
+            --output text || true
