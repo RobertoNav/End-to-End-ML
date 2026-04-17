@@ -1,9 +1,10 @@
 import sys
 from pathlib import Path
 import importlib
+
 import joblib
-from sklearn.linear_model import LinearRegression
 from fastapi.testclient import TestClient
+from sklearn.linear_model import LinearRegression
 
 # Agregar src al path
 sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
@@ -36,8 +37,10 @@ def test_health_endpoint(tmp_path, monkeypatch):
     with client as active_client:
         response = active_client.get("/health")
         assert response.status_code == 200
-        assert response.json()["status"] == "ok"
-        assert response.json()["model_loaded"] is True
+
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["model_loaded"] is True
 
 
 def test_predict_endpoint(tmp_path, monkeypatch):
@@ -50,9 +53,13 @@ def test_predict_endpoint(tmp_path, monkeypatch):
     with client as active_client:
         response = active_client.post("/predict", json=payload)
         assert response.status_code == 200
+
         data = response.json()
         assert "prediction" in data
         assert isinstance(data["prediction"], float)
+        assert "feature_order" in data
+        assert isinstance(data["feature_order"], list)
+        assert len(data["feature_order"]) == 8
 
 
 def test_predict_endpoint_rejects_invalid_feature_length(tmp_path, monkeypatch):
